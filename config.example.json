@@ -1,0 +1,44 @@
+{
+  "version": "1.0",
+  "description": "TotalMix Remote Configuration - Edit to match your setup",
+  "channels": {
+    "inputs": [
+      { "id": 1,  "name": "KICK",     "ch": 1,  "color": "#FF4757" },
+      { "id": 2,  "name": "SNS TOP",  "ch": 2,  "color": "#FF4757" },
+      { "id": 3,  "name": "SNRLOTTO", "ch": 3,  "color": "#FF4757" },
+      { "id": 4,  "name": "HIHAT",    "ch": 4,  "color": "#FF6584" },
+      { "id": 5,  "name": "TT",       "ch": 5,  "color": "#FF6584" },
+      { "id": 6,  "name": "OC",       "ch": 6,  "color": "#FF6584" },
+      { "id": 7,  "name": "OH",       "ch": 7,  "color": "#FF6584" },
+      { "id": 8,  "name": "RIDE",     "ch": 8,  "color": "#FF6584" },
+      { "id": 9,  "name": "BAND",     "ch": 9,  "color": "#F9A826" },
+      { "id": 10, "name": "BASS",    "ch": 10, "color": "#43D9AD" },
+      { "id": 11, "name": "VOZ ME",  "ch": 11, "color": "#6C63FF" },
+      { "id": 12, "name": "ELEC ME", "ch": 12, "color": "#43D9AD" },
+      { "id": 13, "name": "AC. ME",  "ch": 13, "color": "#43D9AD" },
+      { "id": 14, "name": "VOZ AF",  "ch": 14, "color": "#FF6584" },
+      { "id": 15, "name": "ELEC AF", "ch": 15, "color": "#43D9AD" },
+      { "id": 16, "name": "AC AFON", "ch": 16, "color": "#43D9AD" },
+      { "id": 17, "name": "VOZ GUS", "ch": 17, "color": "#F9A826" },
+      { "id": 18, "name": "VIOLINO", "ch": 18, "color": "#ffa502" },
+      { "id": 19, "name": "T.BACK",  "ch": 19, "color": "#eccc68" },
+      { "id": 20, "name": "L/R",        "ch": 20, "color": "#2ed573" },
+      { "id": 21, "name": "CLICK",      "ch": 21, "color": "#FF4757" },
+      { "id": 22, "name": "MARIANA",    "ch": 22, "color": "#6C63FF" }
+    ],
+    "playback": [
+      { "id": 23, "name": "NUNO",         "ch": 1, "color": "#6C63FF" },
+      { "id": 24, "name": "JOAO",         "ch": 2, "color": "#FF6584" },
+      { "id": 25, "name": "AFONSO",       "ch": 3, "color": "#43D9AD" },
+      { "id": 26, "name": "GUSTAVO",      "ch": 4, "color": "#F9A826" },
+      { "id": 27, "name": "REVERB SEND",  "ch": 5, "color": "#555577" }
+    ]
+  },
+  "buses": [
+    { "id": 1, "name": "NUNO",    "color": "#6C63FF" },
+    { "id": 2, "name": "JOAO",    "color": "#FF6584" },
+    { "id": 3, "name": "AFONSO",  "color": "#43D9AD" },
+    { "id": 4, "name": "GUSTAVO", "color": "#F9A826" }
+  ]
+}
+
