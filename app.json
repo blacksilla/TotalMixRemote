@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "TotalMixRemote",
-    "slug": "totalmixremote",
+    "name": "TotalMix Remote Monitor",
+    "slug": "totalmix-remote-monitor",
     "version": "1.0.0",
     "orientation": "default",
     "icon": "./assets/icon.png",

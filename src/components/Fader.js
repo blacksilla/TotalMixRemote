@@ -41,9 +41,6 @@ export default function Fader({
   const currentValue = useRef(value);
   const lastTapTime = useRef(0);
   const tapCount = useRef(0);
-  const lastMoveTime = useRef(Date.now());
-  const lastHapticTime = useRef(Date.now());
-  const lastDeltaY = useRef(0);
 
   currentValue.current = value;
 
@@ -79,8 +76,6 @@ export default function Fader({
         }, 300);
 
         lastY.current = evt.nativeEvent.pageY;
-        lastMoveTime.current = now;
-        lastHapticTime.current = now;
         setIsActive(true);
         onDragStart?.();
         // Refined haptic feedback - subtle single tap like camera zoom
@@ -92,40 +87,12 @@ export default function Fader({
       },
 
       onPanResponderMove: (evt) => {
-        const now = Date.now();
-        const newY = evt.nativeEvent.pageY;
-        const dy = newY - lastY.current;
-        lastY.current = newY;
-        lastDeltaY.current = dy;
-        
+        const dy = evt.nativeEvent.pageY - lastY.current;
+        lastY.current = evt.nativeEvent.pageY;
         const delta = -dy / TRACK_HEIGHT;
         const newVal = clamp(currentValue.current + delta);
         currentValue.current = newVal;
         onValueChange?.(newVal);
-
-        // Calculate velocity and emit granular haptics
-        const timeSinceLastMove = now - lastMoveTime.current;
-        if (timeSinceLastMove > 0) {
-          // Velocity in pixels per millisecond
-          const velocity = Math.abs(dy) / Math.max(1, timeSinceLastMove);
-          
-          // Emit haptics at ~60Hz intervals (every ~16-17ms) for smooth granular feedback
-          const timeSinceLastHaptic = now - lastHapticTime.current;
-          if (timeSinceLastHaptic > 16) {
-            // Map velocity to haptic intensity
-            // Slow: 2-4ms, Medium: 5-8ms, Fast: 9-12ms
-            const hapticIntensity = Math.max(2, Math.min(12, 2 + velocity * 3));
-            
-            try {
-              // Emit single pulse with velocity-based intensity
-              Vibration.vibrate(Math.round(hapticIntensity));
-            } catch (e) {
-              // Vibration not available
-            }
-            lastHapticTime.current = now;
-          }
-        }
-        lastMoveTime.current = now;
       },
 
       onPanResponderRelease: () => {

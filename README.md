@@ -1,4 +1,4 @@
-# TotalMix Remote 🎚
+# TotalMix Remote Monitor 🎚
 
 A React Native remote control app for RME TotalMix FX, focused on **monitor/headphone mix control**.
 Works on both **iPhone** and **Android tablets** from the same codebase.
