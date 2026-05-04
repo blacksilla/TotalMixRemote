@@ -1,6 +1,6 @@
-import React, { useRef, useCallback } from 'react';
+import React, { useRef, useCallback, useState } from 'react';
 import {
-  View, Text, PanResponder, StyleSheet, Platform, useWindowDimensions,
+  View, Text, PanResponder, StyleSheet, Platform, useWindowDimensions, Animated, Vibration,
 } from 'react-native';
 import { colors, spacing, useResponsive } from '../theme/responsive';
 
@@ -9,18 +9,25 @@ export default function Fader({
   value = 0.75,
   onValueChange,
   onValueCommit,
+  onDragStart,
+  onDragEnd,
   muted = false,
   color = colors.accent.purple,
   width = 56,
+  faderHeight = null, // Dynamic height (calculated from available space)
 }) {
   const { height, width: screenWidth } = useWindowDimensions();
   const responsive = useResponsive();
   const isLandscape = screenWidth > height;
   const isLargePhone = responsive.isLargePhone;
   
-  // Significantly larger faders for portrait mode, especially on larger phones
+  const [isActive, setIsActive] = useState(false);
+  
+  // Use provided faderHeight or calculate based on orientation
   let FADER_HEIGHT;
-  if (isLandscape) {
+  if (faderHeight !== null) {
+    FADER_HEIGHT = faderHeight;
+  } else if (isLandscape) {
     FADER_HEIGHT = 120;
   } else {
     // Portrait mode
@@ -32,6 +39,11 @@ export default function Fader({
 
   const lastY = useRef(null);
   const currentValue = useRef(value);
+  const lastTapTime = useRef(0);
+  const tapCount = useRef(0);
+  const lastMoveTime = useRef(Date.now());
+  const lastHapticTime = useRef(Date.now());
+  const lastDeltaY = useRef(0);
 
   currentValue.current = value;
 
@@ -45,23 +57,96 @@ export default function Fader({
       onMoveShouldSetPanResponder: () => true,
 
       onPanResponderGrant: (evt) => {
+        const now = Date.now();
+        const isDoubleTap = now - lastTapTime.current < 300 && tapCount.current === 1;
+        
+        if (isDoubleTap) {
+          // Double-tap detected
+          tapCount.current = 0;
+          handleDoubleTap();
+          lastTapTime.current = 0;
+          return; // Don't start drag
+        }
+        
+        tapCount.current = 1;
+        lastTapTime.current = now;
+        
+        // Reset after timeout
+        setTimeout(() => {
+          if (Date.now() - lastTapTime.current > 300) {
+            tapCount.current = 0;
+          }
+        }, 300);
+
         lastY.current = evt.nativeEvent.pageY;
+        lastMoveTime.current = now;
+        lastHapticTime.current = now;
+        setIsActive(true);
+        onDragStart?.();
+        // Refined haptic feedback - subtle single tap like camera zoom
+        try {
+          Vibration.vibrate(3);
+        } catch (e) {
+          // Vibration not available
+        }
       },
 
       onPanResponderMove: (evt) => {
-        const dy = evt.nativeEvent.pageY - lastY.current;
-        lastY.current = evt.nativeEvent.pageY;
+        const now = Date.now();
+        const newY = evt.nativeEvent.pageY;
+        const dy = newY - lastY.current;
+        lastY.current = newY;
+        lastDeltaY.current = dy;
+        
         const delta = -dy / TRACK_HEIGHT;
         const newVal = clamp(currentValue.current + delta);
         currentValue.current = newVal;
         onValueChange?.(newVal);
+
+        // Calculate velocity and emit granular haptics
+        const timeSinceLastMove = now - lastMoveTime.current;
+        if (timeSinceLastMove > 0) {
+          // Velocity in pixels per millisecond
+          const velocity = Math.abs(dy) / Math.max(1, timeSinceLastMove);
+          
+          // Emit haptics at ~60Hz intervals (every ~16-17ms) for smooth granular feedback
+          const timeSinceLastHaptic = now - lastHapticTime.current;
+          if (timeSinceLastHaptic > 16) {
+            // Map velocity to haptic intensity
+            // Slow: 2-4ms, Medium: 5-8ms, Fast: 9-12ms
+            const hapticIntensity = Math.max(2, Math.min(12, 2 + velocity * 3));
+            
+            try {
+              // Emit single pulse with velocity-based intensity
+              Vibration.vibrate(Math.round(hapticIntensity));
+            } catch (e) {
+              // Vibration not available
+            }
+            lastHapticTime.current = now;
+          }
+        }
+        lastMoveTime.current = now;
       },
 
       onPanResponderRelease: () => {
+        setIsActive(false);
+        onDragEnd?.();
         onValueCommit?.(currentValue.current);
       },
     })
   ).current;
+
+  // Handle double-tap to 0dB (0.75)
+  const handleDoubleTap = useCallback(() => {
+    try {
+      // Refined double-pulse for reset confirmation - subtle and precise
+      Vibration.vibrate([4, 2, 4]);
+    } catch (e) {
+      // Vibration not available
+    }
+    onValueChange?.(0.75);
+    onValueCommit?.(0.75);
+  }, [onValueChange, onValueCommit]);
 
   const dbLabel = () => {
     const db = value <= 0 ? '-∞' : (20 * Math.log10(value)).toFixed(1);
@@ -78,8 +163,28 @@ export default function Fader({
         {dbLabel()}
       </Text>
 
-      <View style={[styles.trackContainer, { height: FADER_HEIGHT }]} {...panResponder.panHandlers}>
-        <View style={[styles.track, { height: TRACK_HEIGHT }]}>
+      <View 
+        style={[
+          styles.trackContainer,
+          { height: FADER_HEIGHT },
+          isActive && styles.trackContainerActive,
+        ]}
+        accessibilityRole="slider"
+        accessibilityLabel={`${label} fader`}
+        accessibilityValue={{
+          min: 0,
+          max: 100,
+          now: Math.round(value * 100),
+          text: `${(value * 100).toFixed(0)}%`,
+        }}
+        accessibilityHint="Double-tap to set to 0dB"
+        {...panResponder.panHandlers}
+      >
+        <View style={[
+          styles.track,
+          { height: TRACK_HEIGHT },
+          isActive && [styles.trackActive, { backgroundColor: color + '40' }],
+        ]}>
           <View
             style={[
               styles.fill,
@@ -87,6 +192,7 @@ export default function Fader({
                 height: TRACK_HEIGHT * value,
                 backgroundColor: muted ? colors.text.tertiary : color,
               },
+              isActive && styles.fillActive,
             ]}
           />
           <View style={styles.zeroLine} />
@@ -100,6 +206,7 @@ export default function Fader({
               borderColor: muted ? colors.text.tertiary : color,
               backgroundColor: colors.bg.secondary,
             },
+            isActive && [styles.thumbActive, { borderColor: color, shadowOpacity: 0.8 }],
           ]}
         >
           <View style={[styles.thumbLine, { backgroundColor: muted ? colors.text.tertiary : color }]} />
@@ -137,6 +244,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     position: 'relative',
   },
+  trackContainerActive: {
+    backgroundColor: colors.bg.tertiary + '30',
+    borderRadius: 8,
+    paddingHorizontal: spacing.xs,
+  },
   track: {
     position: 'absolute',
     top: 18,
@@ -147,9 +259,16 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     justifyContent: 'flex-end',
   },
+  trackActive: {
+    width: 8,
+    borderRadius: 4,
+  },
   fill: {
     width: '100%',
     borderRadius: 3,
+  },
+  fillActive: {
+    opacity: 0.9,
   },
   zeroLine: {
     position: 'absolute',
@@ -177,6 +296,20 @@ const styles = StyleSheet.create({
       },
       android: {
         elevation: 4,
+      },
+    }),
+  },
+  thumbActive: {
+    width: 32,
+    height: 40,
+    borderWidth: 2,
+    ...Platform.select({
+      ios: {
+        shadowOpacity: 0.8,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 8,
       },
     }),
   },

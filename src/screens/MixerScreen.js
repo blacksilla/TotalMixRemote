@@ -13,6 +13,7 @@ import { useResponsive, colors, spacing } from '../theme/responsive';
 export default function MixerScreen({ onDisconnect, onOpenSettings }) {
   const responsive = useResponsive();
   const { selectBus, setFader, toggleMute, setMasterFader, toggleDim, loadSnapshot, feedback, disconnect } = useOsc();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
 
   const [buses, setBuses] = useState(DEFAULT_BUSES);
   const [channels, setChannels] = useState(DEFAULT_CHANNELS);
@@ -21,6 +22,9 @@ export default function MixerScreen({ onDisconnect, onOpenSettings }) {
   const [muteStates, setMuteStates] = useState({});
   const [masterValue, setMasterValue] = useState(0.75);
   const [dimActive, setDimActive] = useState(false);
+
+  // Refs for scroll lock during fader drag
+  const scrollViewRef = useRef(null);
 
   // Load config from persisted settings and defaults
   useEffect(() => {
@@ -86,10 +90,63 @@ export default function MixerScreen({ onDisconnect, onOpenSettings }) {
     toggleDim();
   };
 
+  const handleLoadSnapshot = useCallback((snapshotNum) => {
+    loadSnapshot(snapshotNum);
+  }, [loadSnapshot]);
+
   const handleDisconnect = () => {
     disconnect();
     onDisconnect?.();
   };
+
+  // Scroll lock during fader drag
+  const handleFaderDragStart = useCallback(() => {
+    if (scrollViewRef.current) {
+      scrollViewRef.current.setNativeProps({ scrollEnabled: false });
+    }
+  }, []);
+
+  const handleFaderDragEnd = useCallback(() => {
+    if (scrollViewRef.current) {
+      scrollViewRef.current.setNativeProps({ scrollEnabled: true });
+    }
+  }, []);
+
+  // Scroll to master fader
+  const handleScrollToMaster = useCallback(() => {
+    if (scrollViewRef.current) {
+      // Calculate approximate scroll position for master (rough estimate: channels width + gaps)
+      // Master is after all channels + divider
+      const estimatedScrollX = channels.length * 85; // Avg channel width + gap
+      scrollViewRef.current.scrollTo({ x: estimatedScrollX, animated: true });
+    }
+  }, [channels.length]);
+
+  // Calculate dynamic fader height based on available space
+  const calculateFaderHeight = () => {
+    const isLandscape = screenWidth > screenHeight;
+    if (isLandscape) {
+      // In landscape, use fixed height (current behavior)
+      return 120;
+    }
+    // In portrait, calculate available space
+    // Based on known minHeights from styling
+    const headerHeight = 70; // minHeight in portrait
+    const busBarHeight = responsive.isTablet ? 70 : 64; // maxHeight
+    const snapshotBarHeight = 70; // minHeight in portrait
+    const padding = spacing.lg * 2; // top and bottom padding
+    
+    const availableHeight = screenHeight 
+      - headerHeight 
+      - busBarHeight 
+      - snapshotBarHeight 
+      - padding;
+    
+    // Clamp to reasonable bounds (max ~450px for very tall phones, min ~180px)
+    return Math.max(180, Math.min(450, availableHeight));
+  };
+
+  const dynamicFaderHeight = calculateFaderHeight();
 
   const getFaderValue = (channel) => {
     const key = `${channel.type}_${channel.ch}`;
@@ -100,6 +157,18 @@ export default function MixerScreen({ onDisconnect, onOpenSettings }) {
     const key = `${channel.type}_${channel.ch}`;
     return muteStates[key] ?? false;
   };
+
+  // Handle mute toggle with optimistic updates
+  const handleMuteToggle = useCallback((channel) => {
+    const key = `${channel.type}_${channel.ch}`;
+    // Optimistic update - change local state immediately
+    setMuteStates((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+    // Send command to TotalMix
+    toggleMute(channel);
+  }, [toggleMute]);
 
   return (
     <SafeAreaView style={[styles(responsive).root, { backgroundColor: colors.bg.primary }]}>
@@ -116,6 +185,14 @@ export default function MixerScreen({ onDisconnect, onOpenSettings }) {
             </Text>
           </View>
           <View style={styles(responsive).headerActions}>
+            <TouchableOpacity 
+              style={[styles(responsive).iconBtn, { backgroundColor: colors.bg.secondary }]} 
+              onPress={handleScrollToMaster}
+              activeOpacity={0.7}
+              title="Scroll to Master"
+            >
+              <Text style={[styles(responsive).iconBtnText, { color: colors.accent.teal }]}>⊕</Text>
+            </TouchableOpacity>
             <TouchableOpacity 
               style={[styles(responsive).iconBtn, { backgroundColor: colors.bg.secondary }]} 
               onPress={onOpenSettings}
@@ -163,6 +240,7 @@ export default function MixerScreen({ onDisconnect, onOpenSettings }) {
         <View style={styles(responsive).mixerContainer}>
           {/* Channel strips area */}
           <ScrollView
+            ref={scrollViewRef}
             horizontal
             showsHorizontalScrollIndicator={false}
             style={styles(responsive).mixerArea}
@@ -175,12 +253,15 @@ export default function MixerScreen({ onDisconnect, onOpenSettings }) {
                 value={getFaderValue(ch)}
                 muted={getMuteState(ch)}
                 onFaderChange={handleFaderChange}
-                onMuteToggle={toggleMute}
+                onMuteToggle={handleMuteToggle}
+                onFaderDragStart={handleFaderDragStart}
+                onFaderDragEnd={handleFaderDragEnd}
+                faderHeight={dynamicFaderHeight}
               />
             ))}
 
             {/* Divider */}
-            <View style={[styles(responsive).divider, { backgroundColor: colors.border }]} />
+            <View style={[styles(responsive).divider, { backgroundColor: colors.border, height: dynamicFaderHeight }]} />
 
             {/* Master fader */}
             <View style={styles(responsive).masterStrip}>
@@ -189,7 +270,10 @@ export default function MixerScreen({ onDisconnect, onOpenSettings }) {
                 value={masterValue}
                 color={colors.accent.teal}
                 onValueChange={handleMasterChange}
-                width={responsive.isLargePhone && !responsive.isLandscape ? 72 : 60}
+                width={responsive.isTabletPortrait ? 95 : (responsive.isTablet ? 90 : (responsive.isLargePhone && !responsive.isLandscape ? 80 : 60))}
+                faderHeight={dynamicFaderHeight}
+                onDragStart={handleFaderDragStart}
+                onDragEnd={handleFaderDragEnd}
               />
               <TouchableOpacity
                 style={[
@@ -223,7 +307,7 @@ export default function MixerScreen({ onDisconnect, onOpenSettings }) {
                     styles(responsive).snapshotBtn,
                     { backgroundColor: colors.bg.primary, borderColor: colors.border },
                   ]}
-                  onPress={() => loadSnapshot(n)}
+                  onPress={() => handleLoadSnapshot(n)}
                   activeOpacity={0.7}
                 >
                   <Text style={[styles(responsive).snapshotText, { color: colors.text.secondary }]}>
@@ -338,7 +422,6 @@ const styles = (responsive) => {
     },
     divider: {
       width: 1,
-      height: isLandscape ? 140 : (isLargePhone ? 360 : 280),
       marginHorizontal: isLargePhone ? spacing.sm : spacing.lg,
       alignSelf: 'center',
     },
@@ -368,23 +451,23 @@ const styles = (responsive) => {
       minHeight: isLandscape ? 60 : 70,
     },
     snapshotLabel: { 
-      fontSize: 12, 
-      fontWeight: '600', 
+      fontSize: 13, 
+      fontWeight: '700', 
       letterSpacing: 0.3,
       minWidth: 75,
     },
     snapshotScrollContent: {
-      gap: spacing.sm,
+      gap: spacing.md,
       paddingRight: spacing.lg,
     },
     snapshotBtn: {
-      width: isTablet || (isLargePhone && !isLandscape) ? 50 : 44,
-      height: isTablet || (isLargePhone && !isLandscape) ? 50 : 44,
+      width: isTablet || (isLargePhone && !isLandscape) ? 54 : 48,
+      height: isTablet || (isLargePhone && !isLandscape) ? 54 : 48,
       borderRadius: 10,
       borderWidth: 1,
       justifyContent: 'center',
       alignItems: 'center',
     },
-    snapshotText: { fontSize: isTablet || isLargePhone ? 14 : 12, fontWeight: '700' },
+    snapshotText: { fontSize: isTablet || isLargePhone ? 15 : 13, fontWeight: '700' },
   });
 };

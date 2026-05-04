@@ -8,6 +8,7 @@ export function useResponsive() {
   
   const isLandscape = width > height;
   const isTablet = Math.min(width, height) >= 768;
+  const isTabletPortrait = isTablet && !isLandscape;
   const isSmallPhone = Math.min(width, height) < 400;
   const isLargePhone = Math.min(width, height) >= 750; // iPhone Pro Max, etc.
   
@@ -16,6 +17,7 @@ export function useResponsive() {
     height,
     isLandscape,
     isTablet,
+    isTabletPortrait,
     isSmallPhone,
     isLargePhone,
   };

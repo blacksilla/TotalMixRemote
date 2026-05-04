@@ -1,17 +1,39 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, useWindowDimensions } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, useWindowDimensions, Vibration } from 'react-native';
 import Fader from './Fader';
 import { colors, spacing, useResponsive } from '../theme/responsive';
 
-export default function ChannelStrip({ channel, value, muted = false, onFaderChange, onMuteToggle }) {
+export default function ChannelStrip({ 
+  channel, 
+  value, 
+  muted = false, 
+  onFaderChange, 
+  onMuteToggle,
+  onFaderDragStart,
+  onFaderDragEnd,
+  faderHeight,
+}) {
   const { height, width } = useWindowDimensions();
   const responsive = useResponsive();
   const isLandscape = width > height;
 
-  // Larger fader width for larger phones in portrait
-  const faderWidth = responsive.isLargePhone && !isLandscape ? 72 : 60;
+  // Responsive fader width: tablets get significantly larger faders
+  let faderWidth = 60; // Base: small phones
+  if (responsive.isTabletPortrait) {
+    faderWidth = 95; // Tablets in portrait: much larger
+  } else if (responsive.isTablet) {
+    faderWidth = 90; // Tablets in landscape: still large
+  } else if (responsive.isLargePhone && !isLandscape) {
+    faderWidth = 80; // Large phones in portrait: increased from 72
+  }
 
   const handleMute = () => {
+    try {
+      // Refined haptic for mute toggle - subtle and responsive
+      Vibration.vibrate(3);
+    } catch (e) {
+      // Vibration not available
+    }
     onMuteToggle?.(channel);
   };
 
@@ -24,6 +46,9 @@ export default function ChannelStrip({ channel, value, muted = false, onFaderCha
         muted={muted}
         onValueChange={(v) => onFaderChange?.(channel, v)}
         width={faderWidth}
+        faderHeight={faderHeight}
+        onDragStart={onFaderDragStart}
+        onDragEnd={onFaderDragEnd}
       />
 
       <TouchableOpacity
@@ -64,14 +89,16 @@ const styles = StyleSheet.create({
   },
   muteBtn: {
     marginTop: spacing.md,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
     borderRadius: 6,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.bg.secondary,
-    minWidth: 40,
+    minWidth: 44,
+    minHeight: 44,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   muteText: {
     color: colors.text.secondary,
